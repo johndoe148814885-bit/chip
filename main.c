@@ -15,7 +15,7 @@ struct winsize win;
 
 // physical memory emulations
 unsigned char RAM[RAM_SIZE];
-unsigned char VX[0xF];
+unsigned char VX[16];
 unsigned short PC, SP, I;
 unsigned char DT, ST;
 unsigned char display[8 * 32]; // 64 cols x 32 rows of 2 characters, represented by 8 x 32 bytes, made up of 64 x 32 bits
@@ -132,44 +132,56 @@ int main(int argc, char** argv) {
 	
 	// print unchanged chars
 	printf("Display (%s)", binaryname);
-	printf("\033[1;130HRegisters");	
-	printf("\033[1;146HStack");
-	printf("\033[1;162HProgram");
+	printf("\033[1;131HRegisters");	
+	printf("\033[1;147HStack");
+	printf("\033[1;163HProgram");
 	
-	display[0] = 0xAE;  display[1] = 0x88;  display[2] = 0xE0;
+	/*display[0] = 0xAE;  display[1] = 0x88;  display[2] = 0xE0;
 	display[8] = 0xA8;  display[9] = 0x88;  display[10] = 0xA0;
 	display[16] = 0xEE; display[17] = 0x88; display[18] = 0xA0;
 	display[24] = 0xA8; display[25] = 0x88; display[26] = 0xA0;
 	display[32] = 0xAE; display[33] = 0xEE; display[34] = 0xE0;
 	display[7] = 0x01;  display[248] = 0x80;display[255] = 0x01;
+	*/
+	char opcodehistory[win.ws_row - 1][64];	int nopcodeentries = 0;
 	
-	char opcodehistory[win.ws_row - 1][32];	int nopcodeentries = 0;
+	clock_t t = clock();
 
 	while (running == 1 && ((unsigned short)RAM[PC] << 8) + RAM[PC + 1] != 0x0000) {		
 		// execute opcode
-		char opcodeentry[32]; 
-		sprintf(opcodeentry, "0x%04X: %02X %02X %s\033[0K", PC, RAM[PC], RAM[PC + 1], idtopseudo(opcodetoid(RAM[PC], RAM[PC + 1])));
-		opcodeentry[31] = '\0';
-		strncpy(opcodehistory[nopcodeentries++], opcodeentry, 32);
+		char opcodeentry[64]; 
+		snprintf(opcodeentry, sizeof(opcodeentry), "0x%04X: %02X %02X \033[31m%s\033[0m\033[0K", PC, RAM[PC], RAM[PC + 1], idtopseudo(opcodetoid(RAM[PC], RAM[PC + 1])));
+		
+		int index = nopcodeentries++ % (win.ws_row - 1);
+		strncpy(opcodehistory[index], opcodeentry, 63);
+		opcodehistory[index][63] = '\0';
 		
 		idtofunc(opcodetoid(RAM[PC], RAM[PC + 1]))();
 		
 		// print registers
-		printf("\033[2;130HPC: 0x%04X", PC);
-		printf("\033[3;130HSP: 0x%04X", SP);
-		printf("\033[4;130HI: 0x%04X", I);
-		printf("\033[5;130HDT: %d", DT);
-		printf("\033[6;130HST: %d", ST);
+		printf("\033[2;131HPC: 0x%04X", PC);
+		printf("\033[3;131HSP: 0x%04X", SP);
+		printf("\033[4;131HI: 0x%04X", I);
+		printf("\033[5;131HDT: %d", DT);
+		printf("\033[6;131HST: %d", ST);
 		for (int i = 0; i <= 0xF; ++i)
-			printf("\033[%d;130HV%X: %d", i + 7, i, VX[i]);
+			printf("\033[%d;131HV%X: %d", i + 7, i, VX[i]);
 
 		// print stack
 		for (int i = 0; i < (SP - RAM_STACK) / 2 && i < win.ws_row - 1; ++i)
-			printf("\033[%d;146H0x%04X: %02X %02X", i + 2, SP - (i * 2) - 2, RAM[SP - (i * 2) - 2], RAM[SP - (i * 2) - 1]);
+			printf("\033[%d;147H0x%04X: %02X %02X", i + 2, SP - (i * 2) - 2, RAM[SP - (i * 2) - 2], RAM[SP - (i * 2) - 1]);
 
 		// print program
-		for (int i = nopcodeentries - 1, row = 2; i >= 0; --i, ++row)
-		        printf("\033[%d;162H%s\033[0K", row, opcodehistory[i]);
+		int max_history = win.ws_row - 1;
+		int count = nopcodeentries < max_history ? nopcodeentries : max_history;
+
+		for (int i = 0; i < count; ++i) {
+    			int hist_index = (nopcodeentries - 1 - i) % max_history;
+    			if (hist_index < 0)
+        			hist_index += max_history;
+
+    			printf("\033[%d;163H%s\033[0K", i + 2, opcodehistory[hist_index]);
+		}
 
 		// print display
 		if (updatedisplay) {
@@ -189,7 +201,18 @@ int main(int argc, char** argv) {
 		
 		fflush(stdout);
 		
-		
+		if (clock() - t >= CLOCKS_PER_SEC / 60) {
+    			if (DT > 0) {
+        			DT -= (clock() - t) / (CLOCKS_PER_SEC / 60);
+        			if (DT < 0) DT = 0;}
+
+    			if (ST > 0) {
+        			ST -= (clock() - t) / (CLOCKS_PER_SEC / 60);
+        			if (ST < 0) ST = 0;}
+
+    			t += ((clock() - t) / (CLOCKS_PER_SEC)) * (CLOCKS_PER_SEC / 60);}
+
+
 		usleep(CYCLE_DELAY * CLOCKS_PER_SEC);}
 
 	toggletermbuffer(0);

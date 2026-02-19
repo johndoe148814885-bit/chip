@@ -1,6 +1,7 @@
 #include "opcode.h"
 #include "main.h"
 #include <stdio.h>
+#include <stdlib.h>
 
 const char* pseudos[] = {"",
         "clear display",
@@ -41,6 +42,7 @@ const char* pseudos[] = {"",
 void opcode00E0() {
 	for (int i = 0; i < 8 * 32; ++i)
 		display[i] = 0x00;
+	updatedisplay = 1;
 	PC += 2;}
 
 void opcode00EE() {
@@ -59,14 +61,14 @@ void opcode2NNN() {
 	PC = NNN;}
 
 void opcode3XNN() {
-	int X = RAM[PC] & 0x0F;
+	int X = VX[RAM[PC] & 0x0F];
 	int NN = RAM[PC + 1];
-	PC += (VX[X] == NN) * 2 + 2;}
+	PC += (X == NN) * 2 + 2;}
 	
 void opcode4XNN() {
-	int X = RAM[PC] & 0x0F;
+	int X = VX[RAM[PC] & 0x0F];
 	int NN = RAM[PC + 1];
-	PC += (VX[X] != NN) * 2 + 2;}
+	PC += (X != NN) * 2 + 2;}
 
 void opcode5XY0() {
 	int X = VX[RAM[PC] & 0x0F];
@@ -80,57 +82,167 @@ void opcode6XNN() {
 	PC += 2;}
 
 void opcode7XNN() {
-	};
+	int X = RAM[PC] & 0x0F;
+	int NN = RAM[PC + 1];
+	VX[X] += NN;
+	PC += 2;};
+
 void opcode8XY0() {
-	};
+	int X = RAM[PC] & 0x0F;
+	int Y = VX[RAM[PC + 1] >> 4];
+	VX[X] = Y;
+	PC += 2;};
+
 void opcode8XY1() {
-	};
+	int X = RAM[PC] & 0x0F;
+	int Y = VX[RAM[PC + 1] >> 4];
+	VX[X] |= Y;
+	PC += 2;};
+
 void opcode8XY2() {
-	};
+	int X = RAM[PC] & 0x0F;
+	int Y = VX[RAM[PC + 1] >> 4];
+	VX[X] &= Y;
+	PC += 2;};
+
 void opcode8XY3() {
-	};
+	int X = RAM[PC] & 0x0F;
+	int Y = VX[RAM[PC + 1] >> 4];
+	VX[X] ^= Y;
+	PC += 2;};
+
 void opcode8XY4() {
-	};
+	int X = RAM[PC] & 0x0F;
+	int Y = VX[RAM[PC + 1] >> 4];
+	VX[0xF] = VX[X] + Y > 0xFF;
+	VX[X] += Y;
+	PC += 2;};
+
 void opcode8XY5() {
-	};
+	int X = RAM[PC] & 0x0F;
+	int Y = VX[RAM[PC + 1] >> 4];
+	VX[0xF] = VX[X] >= Y;
+	VX[X] -= Y;
+	PC += 2;};
+
 void opcode8XY6() {
-	};
+	int X = RAM[PC] & 0x0F;
+	VX[0xF] = VX[X] & 0x01;
+	VX[X] >>= 1;
+	PC += 2;};
+
 void opcode8XY7() {
-	};
+	int X = RAM[PC] & 0x0F;
+	int Y = VX[RAM[PC + 1] >> 4];
+	VX[0xF] = Y >= VX[X];
+	VX[X] = Y - VX[X];
+	PC += 2;};
+
 void opcode8XYE() {
-	};
+	int X = RAM[PC] & 0x0F;
+	VX[0xF] = VX[X] & 0x80;
+	VX[X] <<= 1;
+	PC += 2;};
+
 void opcode9XY0() {
-	};
+	int X = VX[RAM[PC] & 0x0F];
+	int Y = VX[RAM[PC + 1] >> 4];
+	PC += (X != Y) * 2 + 2;};
+
 void opcodeANNN() {
-	};
+	int NNN = ((RAM[PC] & 0x0F) << 8) + RAM[PC + 1];
+	I = NNN;
+	PC += 2;};
+
 void opcodeBNNN() {
-	};
+	int NNN = ((RAM[PC] & 0x0F) << 8) + RAM[PC + 1];
+	PC = VX[0] + NNN;};
+
 void opcodeCXNN() {
-	};
+	int X = RAM[PC] & 0x0F;
+	int NN = RAM[PC + 1];
+	VX[X] = (rand() % 0xFF) & NN;
+	PC += 2;};
+
 void opcodeDXYN() {
-	};
+	int X = VX[RAM[PC] & 0x0F];
+	int Y = VX[RAM[PC + 1] >> 4];
+	int N = RAM[PC + 1] & 0x0F;
+	VX[0xF] = 0;
+
+	for (int i = 0; i < N; ++i) {
+		int sprite = RAM[I + i];
+		int row = (Y + i) % 32;
+
+		for (int bit = 0; bit < 8; ++bit) {
+			int spritebit = (sprite >> (7 - bit)) & 1;
+			if (spritebit == 0)
+				continue;
+
+			int pixelx = (X + bit) % 64;
+			int idx = row * 8 + (pixelx / 8);
+			int mask = 1 << (7 - (pixelx % 8));
+
+			if ((display[idx] & mask) != 0)
+				VX[0xF] = 1;
+
+			display[idx] ^= mask;}}
+
+	updatedisplay = 1;
+	PC += 2;};
+
 void opcodeEX9E() {
-	};
+	PC += 2;};
+
 void opcodeEXA1() {
-	};
+	PC += 2;};
+
 void opcodeFX07() {
-	};
+	int X = RAM[PC] & 0x0F;
+	VX[X] = DT;
+	PC += 2;};
+
 void opcodeFX0A() {
-	};
+	PC += 2;};
+
 void opcodeFX15() {
-	};
+	int X = VX[RAM[PC] & 0x0F];
+	DT = X;
+	PC += 2;};
+
 void opcodeFX18() {
-	};
+	int X = VX[RAM[PC] & 0x0F];
+	ST = X;
+	PC += 2;};
+
 void opcodeFX1E() {
-	};
+	int X = VX[RAM[PC] & 0x0F];
+	I += X;
+	PC += 2;};
+
 void opcodeFX29() {
-	};
+	int X = VX[RAM[PC] & 0x0F];
+	I = X * 5 + RAM_FONT;
+	PC += 2;};
+
 void opcodeFX33() {
-	};
+	int X = VX[RAM[PC] & 0x0F];
+	RAM[I] = X / 100;
+	RAM[I + 1] = (X / 10) % 10;
+	RAM[I + 2] = X % 10;
+	PC += 2;};
+
 void opcodeFX55() {
-	};
+	int X = VX[RAM[PC] & 0x0F];
+	for (int i = 0; i <= X; ++i)
+		RAM[I + i] = VX[X + i];
+	PC += 2;};
+
 void opcodeFX65() {
-	};
+	int X = VX[RAM[PC] & 0x0F];
+	for (int i = 0; i <= X; ++i)
+		VX[X + i] = RAM[I + i];
+	PC += 2;};
 
 opcodefunc idtofunc(int id) {
         switch (id) {
