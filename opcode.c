@@ -42,28 +42,6 @@ const char* pseudos[] = {"",
         "load I into V0 to VX",
         "load V0 to VX into I"};
 
-int pollhexkey() {
-	fd_set rfds;
-	struct timeval timeout = {0, 0};
-
-	FD_ZERO(&rfds);
-	FD_SET(STDIN_FILENO, &rfds);
-
-	if (select(STDIN_FILENO + 1, &rfds, NULL, NULL, &timeout) <= 0)
-		return -1;
-
-	char ch;
-	if (read(STDIN_FILENO, &ch, 1) != 1)
-		return -1;
-
-	if (!isxdigit((unsigned char)ch))
-		return -1;
-
-	if (isdigit((unsigned char)ch))
-		return ch - '0';
-
-	return toupper((unsigned char)ch) - 'A' + 10;}
-
 void opcode00E0() {
 	for (int i = 0; i < 8 * 32; ++i)
 		display[i] = 0x00;
@@ -216,28 +194,19 @@ void opcodeDXYN() {
 	updatedisplay = 1;
 	PC += 2;};
 
-void opcodeEX9E() {
-	int X = RAM[PC] & 0x0F;
-	int key = pollhexkey();
-	PC += (key >= 0 && VX[X] == key) * 2 + 2;};
+void opcodeEX9E() { // not implemented yet
+	PC += 2;};
 
-void opcodeEXA1() {
-	int X = RAM[PC] & 0x0F;
-	int key = pollhexkey();
-	PC += (key < 0 || VX[X] != key) * 2 + 2;};
+void opcodeEXA1() { // not implemented yet
+	PC += 2;};
 
 void opcodeFX07() {
 	int X = RAM[PC] & 0x0F;
 	VX[X] = DT;
 	PC += 2;};
 
-void opcodeFX0A() {
-	int X = RAM[PC] & 0x0F;
-	int key = pollhexkey();
-
-	if (key >= 0) {
-		VX[X] = key;
-		PC += 2;}};
+void opcodeFX0A() { // not implemented yet
+	PC += 2;};
 
 void opcodeFX15() {
 	int X = VX[RAM[PC] & 0x0F];

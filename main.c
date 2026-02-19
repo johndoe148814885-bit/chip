@@ -141,8 +141,8 @@ int main(int argc, char** argv) {
 	display[16] = 0xEE; display[17] = 0x88; display[18] = 0xA0;
 	display[24] = 0xA8; display[25] = 0x88; display[26] = 0xA0;
 	display[32] = 0xAE; display[33] = 0xEE; display[34] = 0xE0;
-	display[7] = 0x01;  display[248] = 0x80;display[255] = 0x01;
-	*/
+	display[7] = 0x01;  display[248] = 0x80;display[255] = 0x01;*/
+
 	char opcodehistory[win.ws_row - 1][64];	int nopcodeentries = 0;
 	
 	clock_t t = clock();
