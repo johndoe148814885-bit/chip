@@ -1,7 +1,10 @@
 #include "opcode.h"
 #include "main.h"
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/select.h>
+#include <unistd.h>
 
 const char* pseudos[] = {"",
         "clear display",
@@ -38,6 +41,28 @@ const char* pseudos[] = {"",
         "load VX decimal into I",
         "load I into V0 to VX",
         "load V0 to VX into I"};
+
+int pollhexkey() {
+	fd_set rfds;
+	struct timeval timeout = {0, 0};
+
+	FD_ZERO(&rfds);
+	FD_SET(STDIN_FILENO, &rfds);
+
+	if (select(STDIN_FILENO + 1, &rfds, NULL, NULL, &timeout) <= 0)
+		return -1;
+
+	char ch;
+	if (read(STDIN_FILENO, &ch, 1) != 1)
+		return -1;
+
+	if (!isxdigit((unsigned char)ch))
+		return -1;
+
+	if (isdigit((unsigned char)ch))
+		return ch - '0';
+
+	return toupper((unsigned char)ch) - 'A' + 10;}
 
 void opcode00E0() {
 	for (int i = 0; i < 8 * 32; ++i)
@@ -140,7 +165,7 @@ void opcode8XY7() {
 
 void opcode8XYE() {
 	int X = RAM[PC] & 0x0F;
-	VX[0xF] = VX[X] & 0x80;
+	VX[0xF] = (VX[X] & 0x80) != 0;
 	VX[X] <<= 1;
 	PC += 2;};
 
@@ -161,7 +186,7 @@ void opcodeBNNN() {
 void opcodeCXNN() {
 	int X = RAM[PC] & 0x0F;
 	int NN = RAM[PC + 1];
-	VX[X] = (rand() % 0xFF) & NN;
+	VX[X] = (rand() % 0x100) & NN;
 	PC += 2;};
 
 void opcodeDXYN() {
@@ -192,10 +217,14 @@ void opcodeDXYN() {
 	PC += 2;};
 
 void opcodeEX9E() {
-	PC += 2;};
+	int X = RAM[PC] & 0x0F;
+	int key = pollhexkey();
+	PC += (key >= 0 && VX[X] == key) * 2 + 2;};
 
 void opcodeEXA1() {
-	PC += 2;};
+	int X = RAM[PC] & 0x0F;
+	int key = pollhexkey();
+	PC += (key < 0 || VX[X] != key) * 2 + 2;};
 
 void opcodeFX07() {
 	int X = RAM[PC] & 0x0F;
@@ -203,7 +232,12 @@ void opcodeFX07() {
 	PC += 2;};
 
 void opcodeFX0A() {
-	PC += 2;};
+	int X = RAM[PC] & 0x0F;
+	int key = pollhexkey();
+
+	if (key >= 0) {
+		VX[X] = key;
+		PC += 2;}};
 
 void opcodeFX15() {
 	int X = VX[RAM[PC] & 0x0F];
@@ -235,13 +269,13 @@ void opcodeFX33() {
 void opcodeFX55() {
 	int X = VX[RAM[PC] & 0x0F];
 	for (int i = 0; i <= X; ++i)
-		RAM[I + i] = VX[X + i];
+		RAM[I + i] = VX[i];
 	PC += 2;};
 
 void opcodeFX65() {
 	int X = VX[RAM[PC] & 0x0F];
 	for (int i = 0; i <= X; ++i)
-		VX[X + i] = RAM[I + i];
+		VX[i] = RAM[I + i];
 	PC += 2;};
 
 opcodefunc idtofunc(int id) {
